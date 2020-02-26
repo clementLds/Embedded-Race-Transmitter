@@ -55,6 +55,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "uoled.h"
+#include <stdio.h>
 
 /* USER CODE END Includes */
 
@@ -84,12 +85,16 @@ typedef enum { false, true } bool;
 UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart2;
 
-osThreadId DecodageHandle;
-osThreadId AfficheurHandle;
-osThreadId GestionToursHandle;
-osThreadId GestionRadioHandle;
+osThreadId DecodManchHandle;
+osThreadId GestEcranHandle;
+osThreadId GestToursHandle;
+osThreadId GestRadioHandle;
 osThreadId ReinitHandle;
+osThreadId GestLedHandle;
 osTimerId HorlogeHandle;
+osSemaphoreId PassageHandle;
+osSemaphoreId ActuEcranHandle;
+osSemaphoreId EnvoiHandle;
 /* USER CODE BEGIN PV */
 bool anomalie;
 unsigned int nbTour1;
@@ -103,11 +108,12 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_UART4_Init(void);
-void StartDecodage(void const * argument);
-void StartAfficheur(void const * argument);
-void StartGestionTours(void const * argument);
-void StartGestionRadio(void const * argument);
+void StartDecodManch(void const * argument);
+void StartGestEcran(void const * argument);
+void StartGestTours(void const * argument);
+void StartGestRadio(void const * argument);
 void StartReinit(void const * argument);
+void StartGestLed(void const * argument);
 void CallbackHorloge(void const * argument);
 
 /* USER CODE BEGIN PFP */
@@ -125,6 +131,7 @@ PUTCHAR_PROTOTYPE
 HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, 0xFFFF);
 return ch;
 }
+
 /* USER CODE END 0 */
 
 /**
@@ -136,6 +143,7 @@ int main(void)
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
+  
 
   /* MCU Configuration--------------------------------------------------------*/
 
@@ -167,6 +175,19 @@ int main(void)
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
+  /* Create the semaphores(s) */
+  /* definition and creation of Passage */
+  osSemaphoreDef(Passage);
+  PassageHandle = osSemaphoreCreate(osSemaphore(Passage), 1);
+
+  /* definition and creation of ActuEcran */
+  osSemaphoreDef(ActuEcran);
+  ActuEcranHandle = osSemaphoreCreate(osSemaphore(ActuEcran), 1);
+
+  /* definition and creation of Envoi */
+  osSemaphoreDef(Envoi);
+  EnvoiHandle = osSemaphoreCreate(osSemaphore(Envoi), 1);
+
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
@@ -182,39 +203,42 @@ int main(void)
 	
   /* USER CODE END RTOS_TIMERS */
 
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
   /* Create the thread(s) */
-  /* definition and creation of Decodage */
-  osThreadDef(Decodage, StartDecodage, osPriorityNormal, 0, 128);
-  DecodageHandle = osThreadCreate(osThread(Decodage), NULL);
+  /* definition and creation of DecodManch */
+  osThreadDef(DecodManch, StartDecodManch, osPriorityNormal, 0, 128);
+  DecodManchHandle = osThreadCreate(osThread(DecodManch), NULL);
 
-  /* definition and creation of Afficheur */
-  osThreadDef(Afficheur, StartAfficheur, osPriorityNormal, 0, 128);
-  AfficheurHandle = osThreadCreate(osThread(Afficheur), NULL);
+  /* definition and creation of GestEcran */
+  osThreadDef(GestEcran, StartGestEcran, osPriorityNormal, 0, 128);
+  GestEcranHandle = osThreadCreate(osThread(GestEcran), NULL);
 
-  /* definition and creation of GestionTours */
-  osThreadDef(GestionTours, StartGestionTours, osPriorityNormal, 0, 128);
-  GestionToursHandle = osThreadCreate(osThread(GestionTours), NULL);
+  /* definition and creation of GestTours */
+  osThreadDef(GestTours, StartGestTours, osPriorityNormal, 0, 128);
+  GestToursHandle = osThreadCreate(osThread(GestTours), NULL);
 
-  /* definition and creation of GestionRadio */
-  osThreadDef(GestionRadio, StartGestionRadio, osPriorityNormal, 0, 128);
-  GestionRadioHandle = osThreadCreate(osThread(GestionRadio), NULL);
+  /* definition and creation of GestRadio */
+  osThreadDef(GestRadio, StartGestRadio, osPriorityNormal, 0, 128);
+  GestRadioHandle = osThreadCreate(osThread(GestRadio), NULL);
 
   /* definition and creation of Reinit */
   osThreadDef(Reinit, StartReinit, osPriorityNormal, 0, 128);
   ReinitHandle = osThreadCreate(osThread(Reinit), NULL);
 
+  /* definition and creation of GestLed */
+  osThreadDef(GestLed, StartGestLed, osPriorityNormal, 0, 128);
+  GestLedHandle = osThreadCreate(osThread(GestLed), NULL);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
-  /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
-  /* USER CODE END RTOS_QUEUES */
- 
-
   /* Start scheduler */
   osKernelStart();
-  
+ 
   /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
@@ -237,11 +261,11 @@ void SystemClock_Config(void)
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-  /**Configure the main internal regulator output voltage 
+  /** Configure the main internal regulator output voltage 
   */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
-  /**Initializes the CPU, AHB and APB busses clocks 
+  /** Initializes the CPU, AHB and APB busses clocks 
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
@@ -251,7 +275,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  /**Initializes the CPU, AHB and APB busses clocks 
+  /** Initializes the CPU, AHB and APB busses clocks 
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
@@ -377,16 +401,15 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDecodage */
+/* USER CODE BEGIN Header_StartDecodManch */
 /**
-  * @brief  Function implementing the Decodage thread.
+  * @brief  Function implementing the DecodManch thread.
   * @param  argument: Not used 
   * @retval None
   */
-/* USER CODE END Header_StartDecodage */
-void StartDecodage(void const * argument)
+/* USER CODE END Header_StartDecodManch */
+void StartDecodManch(void const * argument)
 {
-
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
   for(;;)
@@ -396,126 +419,58 @@ void StartDecodage(void const * argument)
   /* USER CODE END 5 */ 
 }
 
-/* USER CODE BEGIN Header_StartAfficheur */
+/* USER CODE BEGIN Header_StartGestEcran */
 /**
-* @brief Function implementing the Afficheur thread.
+* @brief Function implementing the GestEcran thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartAfficheur */
-void StartAfficheur(void const * argument)
+/* USER CODE END Header_StartGestEcran */
+void StartGestEcran(void const * argument)
 {
-  /* USER CODE BEGIN StartAfficheur */
-	gfx_RectangleFilled(0,0,19,19,BLACK);
-	txt_BGcolour(BLACK) ;
-	txt_FGcolour(WHITE) ;
-	txt_MoveCursor(4,4);
-	putCH('N');
-	txt_MoveCursor(5,4);
-	putCH('o');
-	txt_MoveCursor(6,4);
-	putCH('m');
-	txt_MoveCursor(7,4);
-	putCH('b');
-	txt_MoveCursor(8,4);
-	putCH('r');
-	txt_MoveCursor(9,4);
-	putCH('e');
-	txt_MoveCursor(4,5);
-	putCH('d');
-	txt_MoveCursor(5,5);
-	putCH('e');
-	txt_MoveCursor(7,5);
-	putCH('t');
-	txt_MoveCursor(8,5);
-	putCH('o');
-	txt_MoveCursor(9,5);
-	putCH('u');
-	txt_MoveCursor(10,5);
-	putCH('r');
-	txt_MoveCursor(11,5);
-	putCH('s');
-	txt_MoveCursor(13,5);
-	putCH(':');
-	
-  /* Infinite loop */
-  for(;;)
-  {
-    osSignalWait(signal_lcd, osWaitForever);
-		printf("Afficheur : \n\r");
-		gfx_RectangleFilled(4,8,5,10,BLACK);
-		txt_MoveCursor(4,8);
-		if(nbTour1 < nbTour2){
-			putINT(nbTour1/100);
-			txt_MoveCursor(5,8);
-			putINT(nbTour1%100/10);
-			txt_MoveCursor(6,8);
-			putINT(nbTour1%100%10);
-		}else{
-			putINT(nbTour2/100);
-			txt_MoveCursor(5,8);
-			putINT(nbTour2%100/10);
-			txt_MoveCursor(6,8);
-			putINT(nbTour2%100%10);
-		}
-  }
-  /* USER CODE END StartAfficheur */
-}
-
-/* USER CODE BEGIN Header_StartGestionTours */
-/**
-* @brief Function implementing the GestionTours thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartGestionTours */
-void StartGestionTours(void const * argument)
-{
-  /* USER CODE BEGIN StartGestionTours */
-	anomalie = false;
-	
-  /* Infinite loop */
-  for(;;)
-  {
-    osSignalWait(signal_passage, osWaitForever);
-		if(endroit==1){
-			nbTour1++;
-		}else{
-			nbTour2++;
-		}
-		if(abs(nbTour1-nbTour2)<2){
-			anomalie = false;
-		}else{
-			anomalie = true;
-		}
-	if(anomalie) {
-		printf("GestionTours : anomalie = 1\n\r");
-	}else{
-		printf("GestionTours : anomalie = 0\n\r");
-	}
-	printf("nbTour1 = %d, nbTour2 = %d\n\r", nbTour1, nbTour2);
-	osSignalSet(AfficheurHandle, signal_lcd);
-	osSignalSet(GestionRadioHandle, signal_envoi);
-  }
-  /* USER CODE END StartGestionTours */
-}
-
-/* USER CODE BEGIN Header_StartGestionRadio */
-/**
-* @brief Function implementing the GestionRadio thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartGestionRadio */
-void StartGestionRadio(void const * argument)
-{
-  /* USER CODE BEGIN StartGestionRadio */
+  /* USER CODE BEGIN StartGestEcran */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END StartGestionRadio */
+  /* USER CODE END StartGestEcran */
+}
+
+/* USER CODE BEGIN Header_StartGestTours */
+/**
+* @brief Function implementing the GestTours thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartGestTours */
+void StartGestTours(void const * argument)
+{
+  /* USER CODE BEGIN StartGestTours */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartGestTours */
+}
+
+/* USER CODE BEGIN Header_StartGestRadio */
+/**
+* @brief Function implementing the GestRadio thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartGestRadio */
+void StartGestRadio(void const * argument)
+{
+  /* USER CODE BEGIN StartGestRadio */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartGestRadio */
 }
 
 /* USER CODE BEGIN Header_StartReinit */
@@ -536,6 +491,24 @@ void StartReinit(void const * argument)
   /* USER CODE END StartReinit */
 }
 
+/* USER CODE BEGIN Header_StartGestLed */
+/**
+* @brief Function implementing the GestLed thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartGestLed */
+void StartGestLed(void const * argument)
+{
+  /* USER CODE BEGIN StartGestLed */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartGestLed */
+}
+
 /* CallbackHorloge function */
 void CallbackHorloge(void const * argument)
 {
@@ -543,7 +516,7 @@ void CallbackHorloge(void const * argument)
   printf("horloge : \n\r");
 	int r = rand();
 	endroit = r%2;
-	osSignalSet (GestionToursHandle, signal_passage);
+	osSignalSet (GestToursHandle, signal_passage);
 	nbTour1++;	
 	
 	
