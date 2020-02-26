@@ -429,10 +429,58 @@ void StartDecodManch(void const * argument)
 void StartGestEcran(void const * argument)
 {
   /* USER CODE BEGIN StartGestEcran */
+	gfx_RectangleFilled(0,0,19,19,BLACK);
+	txt_BGcolour(BLACK) ;
+	txt_FGcolour(WHITE) ;
+	txt_MoveCursor(4,4);
+	putCH('N');
+	txt_MoveCursor(5,4);
+	putCH('o');
+	txt_MoveCursor(6,4);
+	putCH('m');
+	txt_MoveCursor(7,4);
+	putCH('b');
+	txt_MoveCursor(8,4);
+	putCH('r');
+	txt_MoveCursor(9,4);
+	putCH('e');
+	txt_MoveCursor(4,5);
+	putCH('d');
+	txt_MoveCursor(5,5);
+	putCH('e');
+	txt_MoveCursor(7,5);
+	putCH('t');
+	txt_MoveCursor(8,5);
+	putCH('o');
+	txt_MoveCursor(9,5);
+	putCH('u');
+	txt_MoveCursor(10,5);
+	putCH('r');
+	txt_MoveCursor(11,5);
+	putCH('s');
+	txt_MoveCursor(13,5);
+	putCH(':');
+	
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osSignalWait(signal_lcd, osWaitForever);
+		printf("GestEcran : \n\r");
+		gfx_RectangleFilled(4,8,5,10,BLACK);
+		txt_MoveCursor(4,8);
+		if(nbTour1 < nbTour2){
+			putINT(nbTour1/100);
+			txt_MoveCursor(5,8);
+			putINT(nbTour1%100/10);
+			txt_MoveCursor(6,8);
+			putINT(nbTour1%100%10);
+		}else{
+			putINT(nbTour2/100);
+			txt_MoveCursor(5,8);
+			putINT(nbTour2%100/10);
+			txt_MoveCursor(6,8);
+			putINT(nbTour2%100%10);
+		}
   }
   /* USER CODE END StartGestEcran */
 }
