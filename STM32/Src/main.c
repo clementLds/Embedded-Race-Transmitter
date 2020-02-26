@@ -213,7 +213,7 @@ int main(void)
   DecodManchHandle = osThreadCreate(osThread(DecodManch), NULL);
 
   /* definition and creation of GestEcran */
-  osThreadDef(GestEcran, StartGestEcran, osPriorityNormal, 0, 128);
+  osThreadDef(GestEcran, StartGestEcran, osPriorityAboveNormal, 0, 128);
   GestEcranHandle = osThreadCreate(osThread(GestEcran), NULL);
 
   /* definition and creation of GestTours */
@@ -498,7 +498,20 @@ void StartGestTours(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osSemaphoreWait(PassageHandle, osWaitForever);
+		printf("GestTours : \n\r");
+		if(endroit == 1){
+			nbTour1++;
+		}else if (endroit == 2){
+			nbTour2++;
+		}
+		if(abs(nbTour1-nbTour2)>1){
+			anomalie = true;
+		} else {
+			anomalie = false;
+		}
+		osSemaphoreRelease(ActuEcranHandle);
+		osSemaphoreRelease(EnvoiHandle);
   }
   /* USER CODE END StartGestTours */
 }
@@ -564,7 +577,7 @@ void CallbackHorloge(void const * argument)
   printf("horloge : \n\r");
 	int r = rand();
 	endroit = r%2;
-	osSignalSet (GestToursHandle, signal_passage);
+	osSignalSet (GestEcranHandle, signal_lcd);
 	nbTour1++;	
 	
 	

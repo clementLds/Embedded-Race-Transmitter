@@ -1,8 +1,9 @@
 #MicroXplorer Configuration settings - do not modify
 FREERTOS.BinarySemaphores01=Passage,Dynamic,NULL;ActuEcran,Dynamic,NULL;Envoi,Dynamic,NULL
 FREERTOS.FootprintOK=true
-FREERTOS.IPParameters=Tasks01,FootprintOK,configUSE_COUNTING_SEMAPHORES,configUSE_MUTEXES,configUSE_TICK_HOOK,configUSE_TIMERS,Timers01,BinarySemaphores01
-FREERTOS.Tasks01=DecodManch,0,128,StartDecodManch,Default,NULL,Dynamic,NULL,NULL;GestEcran,0,128,StartGestEcran,Default,NULL,Dynamic,NULL,NULL;GestTours,0,128,StartGestTours,Default,NULL,Dynamic,NULL,NULL;GestRadio,0,128,StartGestRadio,Default,NULL,Dynamic,NULL,NULL;Reinit,0,128,StartReinit,Default,NULL,Dynamic,NULL,NULL;GestLed,0,128,StartGestLed,Default,NULL,Dynamic,NULL,NULL
+FREERTOS.INCLUDE_xTaskGetCurrentTaskHandle=1
+FREERTOS.IPParameters=Tasks01,FootprintOK,configUSE_COUNTING_SEMAPHORES,configUSE_MUTEXES,configUSE_TICK_HOOK,configUSE_TIMERS,Timers01,BinarySemaphores01,INCLUDE_xTaskGetCurrentTaskHandle
+FREERTOS.Tasks01=DecodManch,0,128,StartDecodManch,Default,NULL,Dynamic,NULL,NULL;GestEcran,1,128,StartGestEcran,Default,NULL,Dynamic,NULL,NULL;GestTours,0,128,StartGestTours,Default,NULL,Dynamic,NULL,NULL;GestRadio,0,128,StartGestRadio,Default,NULL,Dynamic,NULL,NULL;Reinit,0,128,StartReinit,Default,NULL,Dynamic,NULL,NULL;GestLed,0,128,StartGestLed,Default,NULL,Dynamic,NULL,NULL
 FREERTOS.Timers01=Horloge,CallbackHorloge,osTimerPeriodic,Default,NULL,Dynamic,NULL
 FREERTOS.configUSE_COUNTING_SEMAPHORES=0
 FREERTOS.configUSE_MUTEXES=0
