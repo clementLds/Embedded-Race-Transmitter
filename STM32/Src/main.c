@@ -70,6 +70,25 @@ typedef enum { false, true } bool;
 /* USER CODE BEGIN PD */
 #define data_length 28
 
+#define data_nbsolex_Msk 	0xFFC0000
+#define data_nb1_Msk 			0x003FE00
+#define data_nb2_Msk 			0x00001FF
+
+#define data_nbsolex_Pos 	18
+#define data_nb1_Pos 			9
+#define data_nb2_Pos 			0
+
+#define trame_preambule 	0x800000000
+#define trame_nbsolex_Msk 0x7FE000000
+#define trame_nb1_Msk 		0x001FF0000
+#define trame_nb2_Msk 		0x00000FF80
+#define trame_crc_Msk 		0x00000007F
+
+#define trame_nbsolex_Pos 25
+#define trame_nb1_Pos 		16
+#define trame_nb2_Pos 		7
+#define trame_crc_Pos 		0
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -429,7 +448,6 @@ int crc_reverse(int data){
 	return reversed_data;
 }
 
-
 int crc_generate(int reversed_data){ // generate crc value
 	int crc_tab [7] = {0,0,0,0,0,0,0};
 	int crc_temp = 0; // most significant bit
@@ -449,6 +467,23 @@ int crc_generate(int reversed_data){ // generate crc value
 	crc_value = (crc_tab[6]<<6) + (crc_tab[5]<<5) + (crc_tab[4]<<4) + (crc_tab[3]<<3) + (crc_tab[2]<<2) + (crc_tab[1]<<1) + crc_tab[0];
 	
 	return crc_value;
+}
+
+int data_generate(int nb_solex, int nb1, int nb2){
+	int data = ((nb_solex << data_nbsolex_Pos) & data_nbsolex_Msk) 
+								| ((nb1 << data_nb1_Pos) & data_nb1_Msk) 
+								| ((nb2 << data_nb2_Pos) & data_nb2_Msk);
+	return data;
+}
+
+unsigned long int trame_generate(int nb_solex, int nb1, int nb2, int crc_value){
+	unsigned long int trame = trame_preambule
+															| (((unsigned long int)nb_solex << trame_nbsolex_Pos) & trame_nbsolex_Msk) 
+															| (((unsigned long int)nb1 << trame_nb1_Pos) & trame_nb1_Msk) 
+															| (((unsigned long int)nb2 << trame_nb2_Pos) & trame_nb2_Msk)
+															| (((unsigned long int)crc_value << trame_crc_Pos) & trame_crc_Msk);
+	
+	return trame;
 }
 
 
