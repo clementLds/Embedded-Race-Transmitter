@@ -68,6 +68,7 @@ typedef enum { false, true } bool;
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define data_length 28
 
 /* USER CODE END PD */
 
@@ -417,6 +418,39 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+int crc_reverse(int data){
+	int reversed_data = 0;
+	
+	for(int i=0; i<data_length; i++){
+		reversed_data = reversed_data << 1;
+		reversed_data = reversed_data | ((data >> i) & 1);
+	}
+	
+	return reversed_data;
+}
+
+
+int crc_generate(int reversed_data){ // generate crc value
+	int crc_tab [7] = {0,0,0,0,0,0,0};
+	int crc_temp = 0; // most significant bit
+	int crc_value;
+	
+	for(int i=0; i<data_length; i++){ // data_length = 28 bits, crc polynomial is 0x5B
+		crc_temp = crc_tab[6];
+		crc_tab[6] = crc_tab[5];
+		crc_tab[5] = crc_tab[4] ^ crc_temp;
+		crc_tab[4] = crc_tab[3] ^ crc_temp;
+		crc_tab[3] = crc_tab[2];
+		crc_tab[2] = crc_tab[1] ^ crc_temp;
+		crc_tab[1] = crc_tab[0] ^ crc_temp;
+		crc_tab[0] = ((reversed_data>>i) & 1) ^ crc_temp;
+	}
+	
+	crc_value = (crc_tab[6]<<6) + (crc_tab[5]<<5) + (crc_tab[4]<<4) + (crc_tab[3]<<3) + (crc_tab[2]<<2) + (crc_tab[1]<<1) + crc_tab[0];
+	
+	return crc_value;
+}
+
 
 /* USER CODE END 4 */
 
