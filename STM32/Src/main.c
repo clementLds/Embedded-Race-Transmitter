@@ -56,7 +56,6 @@
 /* USER CODE BEGIN Includes */
 #include "uoled.h"
 #include <stdio.h>
-#include <stdlib.h>
 
 /* USER CODE END Includes */
 
@@ -68,6 +67,12 @@ typedef enum { false, true } bool;
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define signal_tempo 0x0001
+#define signal_capture 0x0002
+#define signal_debut 0x0003
+#define signal_passage 0x0004
+#define signal_lcd 0x0005
+#define signal_envoi 0x0006
 
 /* USER CODE END PD */
 
@@ -87,11 +92,9 @@ osThreadId GestRadioHandle;
 osThreadId ReinitHandle;
 osThreadId GestLedHandle;
 osTimerId HorlogeHandle;
-osTimerId LedHorlogeHandle;
-osSemaphoreId Passage_semaphoreHandle;
-osSemaphoreId Ecran_semaphoreHandle;
-osSemaphoreId Radio_semaphoreHandle;
-osSemaphoreId Led_semaphoreHandle;
+osSemaphoreId PassageHandle;
+osSemaphoreId ActuEcranHandle;
+osSemaphoreId EnvoiHandle;
 /* USER CODE BEGIN PV */
 bool anomalie;
 unsigned int nbTour1;
@@ -112,7 +115,6 @@ void StartGestRadio(void const * argument);
 void StartReinit(void const * argument);
 void StartGestLed(void const * argument);
 void CallbackHorloge(void const * argument);
-void CallbackLedHorloge(void const * argument);
 
 /* USER CODE BEGIN PFP */
 #ifdef __GNUC__
@@ -164,9 +166,9 @@ int main(void)
   MX_USART2_UART_Init();
   MX_UART4_Init();
   /* USER CODE BEGIN 2 */
-	//gfx_Cls(); 																						// %%%%%%%%%% ECRAN UOLED %%%%%%%%%%
-	//setbaudWait(115200,BAUD_115200); 											// %%%%%%%%%% ECRAN UOLED %%%%%%%%%%
-	
+	gfx_Cls();
+	setbaudWait(115200,BAUD_115200);
+
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -174,21 +176,17 @@ int main(void)
   /* USER CODE END RTOS_MUTEX */
 
   /* Create the semaphores(s) */
-  /* definition and creation of Passage_semaphore */
-  osSemaphoreDef(Passage_semaphore);
-  Passage_semaphoreHandle = osSemaphoreCreate(osSemaphore(Passage_semaphore), 1);
+  /* definition and creation of Passage */
+  osSemaphoreDef(Passage);
+  PassageHandle = osSemaphoreCreate(osSemaphore(Passage), 1);
 
-  /* definition and creation of Ecran_semaphore */
-  osSemaphoreDef(Ecran_semaphore);
-  Ecran_semaphoreHandle = osSemaphoreCreate(osSemaphore(Ecran_semaphore), 1);
+  /* definition and creation of ActuEcran */
+  osSemaphoreDef(ActuEcran);
+  ActuEcranHandle = osSemaphoreCreate(osSemaphore(ActuEcran), 1);
 
-  /* definition and creation of Radio_semaphore */
-  osSemaphoreDef(Radio_semaphore);
-  Radio_semaphoreHandle = osSemaphoreCreate(osSemaphore(Radio_semaphore), 1);
-
-  /* definition and creation of Led_semaphore */
-  osSemaphoreDef(Led_semaphore);
-  Led_semaphoreHandle = osSemaphoreCreate(osSemaphore(Led_semaphore), 1);
+  /* definition and creation of Envoi */
+  osSemaphoreDef(Envoi);
+  EnvoiHandle = osSemaphoreCreate(osSemaphore(Envoi), 1);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -199,14 +197,9 @@ int main(void)
   osTimerDef(Horloge, CallbackHorloge);
   HorlogeHandle = osTimerCreate(osTimer(Horloge), osTimerPeriodic, NULL);
 
-  /* definition and creation of LedHorloge */
-  osTimerDef(LedHorloge, CallbackLedHorloge);
-  LedHorlogeHandle = osTimerCreate(osTimer(LedHorloge), osTimerPeriodic, NULL);
-
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
 	osTimerStart(HorlogeHandle,1000);
-	osTimerStart(LedHorlogeHandle,300);
 	
   /* USER CODE END RTOS_TIMERS */
 
@@ -216,11 +209,11 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of DecodManch */
-  osThreadDef(DecodManch, StartDecodManch, osPriorityBelowNormal, 0, 128);
+  osThreadDef(DecodManch, StartDecodManch, osPriorityNormal, 0, 128);
   DecodManchHandle = osThreadCreate(osThread(DecodManch), NULL);
 
   /* definition and creation of GestEcran */
-  osThreadDef(GestEcran, StartGestEcran, osPriorityHigh, 0, 128);
+  osThreadDef(GestEcran, StartGestEcran, osPriorityAboveNormal, 0, 128);
   GestEcranHandle = osThreadCreate(osThread(GestEcran), NULL);
 
   /* definition and creation of GestTours */
@@ -228,20 +221,19 @@ int main(void)
   GestToursHandle = osThreadCreate(osThread(GestTours), NULL);
 
   /* definition and creation of GestRadio */
-  osThreadDef(GestRadio, StartGestRadio, osPriorityHigh, 0, 128);
+  osThreadDef(GestRadio, StartGestRadio, osPriorityNormal, 0, 128);
   GestRadioHandle = osThreadCreate(osThread(GestRadio), NULL);
 
   /* definition and creation of Reinit */
-  osThreadDef(Reinit, StartReinit, osPriorityIdle, 0, 128);
+  osThreadDef(Reinit, StartReinit, osPriorityNormal, 0, 128);
   ReinitHandle = osThreadCreate(osThread(Reinit), NULL);
 
   /* definition and creation of GestLed */
-  osThreadDef(GestLed, StartGestLed, osPriorityAboveNormal, 0, 128);
+  osThreadDef(GestLed, StartGestLed, osPriorityNormal, 0, 128);
   GestLedHandle = osThreadCreate(osThread(GestLed), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
-	printf("----- End main -----\n\r");
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -374,8 +366,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
@@ -383,14 +373,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|LED_GREEN_Pin 
-                          |LED_RED_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : USER_BUTTON_Pin */
-  GPIO_InitStruct.Pin = USER_BUTTON_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(USER_BUTTON_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : PA5 */
   GPIO_InitStruct.Pin = GPIO_PIN_5;
@@ -399,10 +382,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB0 PB1 PB2 LED_GREEN_Pin 
-                           LED_RED_Pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|LED_GREEN_Pin 
-                          |LED_RED_Pin;
+  /*Configure GPIO pins : PB0 PB1 PB2 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -433,8 +414,6 @@ void StartDecodManch(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-		osSignalWait(0x9999, osWaitForever);
-		printf("----- DecodManch -----\n\r");
     osDelay(1);
   }
   /* USER CODE END 5 */ 
@@ -450,8 +429,7 @@ void StartDecodManch(void const * argument)
 void StartGestEcran(void const * argument)
 {
   /* USER CODE BEGIN StartGestEcran */
-	int nbTour;
-	/*gfx_RectangleFilled(0,0,19,19,BLACK); 											// %%%%%%%%%% ECRAN UOLED %%%%%%%%%%
+	gfx_RectangleFilled(0,0,19,19,BLACK);
 	txt_BGcolour(BLACK) ;
 	txt_FGcolour(WHITE) ;
 	txt_MoveCursor(4,4);
@@ -482,26 +460,27 @@ void StartGestEcran(void const * argument)
 	putCH('s');
 	txt_MoveCursor(13,5);
 	putCH(':');
-	*/
+	
   /* Infinite loop */
   for(;;)
   {
-		osSemaphoreWait(Ecran_semaphoreHandle, osWaitForever);
-		printf("----- GestEcran -----\n\r");
-    /*
-		gfx_RectangleFilled(4,8,5,10,BLACK); 											// %%%%%%%%%% ECRAN UOLED %%%%%%%%%%
+    osSignalWait(signal_lcd, osWaitForever);
+		printf("GestEcran : \n\r");
+		gfx_RectangleFilled(4,8,5,10,BLACK);
 		txt_MoveCursor(4,8);
 		if(nbTour1 < nbTour2){
-			nbTour = nbTour1;
+			putINT(nbTour1/100);
+			txt_MoveCursor(5,8);
+			putINT(nbTour1%100/10);
+			txt_MoveCursor(6,8);
+			putINT(nbTour1%100%10);
 		}else{
-			nbTour = nbTour2;
+			putINT(nbTour2/100);
+			txt_MoveCursor(5,8);
+			putINT(nbTour2%100/10);
+			txt_MoveCursor(6,8);
+			putINT(nbTour2%100%10);
 		}
-		putINT(nbTour/100);
-		txt_MoveCursor(5,8);
-		nbTour = nbTour%100;
-		putINT(nbTour/10);
-		txt_MoveCursor(6,8);
-		putINT(nbTour%10);*/
   }
   /* USER CODE END StartGestEcran */
 }
@@ -519,23 +498,20 @@ void StartGestTours(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    osSemaphoreWait(Passage_semaphoreHandle, osWaitForever);
-		printf("----- GestTours -----\n\r");
+    osSemaphoreWait(PassageHandle, osWaitForever);
+		printf("GestTours : \n\r");
 		if(endroit == 1){
 			nbTour1++;
 		}else if (endroit == 2){
 			nbTour2++;
 		}
-		if((nbTour1-nbTour2)>1 || (nbTour2-nbTour1)>1){
+		if(abs(nbTour1-nbTour2)>1){
 			anomalie = true;
 		} else {
 			anomalie = false;
 		}
-		printf("nbTour1 : %d\n\r", nbTour1);
-		printf("nbTour2 : %d\n\r", nbTour2);
-		printf("anomalie : %d\n\r", anomalie);
-		osSemaphoreRelease(Ecran_semaphoreHandle);
-		osSemaphoreRelease(Radio_semaphoreHandle);
+		osSemaphoreRelease(ActuEcranHandle);
+		osSemaphoreRelease(EnvoiHandle);
   }
   /* USER CODE END StartGestTours */
 }
@@ -553,8 +529,6 @@ void StartGestRadio(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-		osSemaphoreWait(Radio_semaphoreHandle, osWaitForever);
-		printf("----- GestRadio -----\n\r");
     osDelay(1);
   }
   /* USER CODE END StartGestRadio */
@@ -573,23 +547,7 @@ void StartReinit(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-		printf("----- Reinit -----\n\r");
-    if (!HAL_GPIO_ReadPin(GPIOC, USER_BUTTON_Pin)) {
-			printf("Button pushed !\n\r");
-			nbTour1 = 0;
-			nbTour2 = 0;
-			anomalie = false;
-			
-			HAL_GPIO_WritePin(GPIOB, LED_RED_Pin, GPIO_PIN_SET); // Clignotement rapide de la LED rouge (PB9) pour signaler la réinitialisation
-			for(int i=0; i<5; i++){
-				osDelay(50);
-				HAL_GPIO_TogglePin(GPIOB, LED_RED_Pin);
-			}
-			
-			osSemaphoreRelease(Ecran_semaphoreHandle);
-			
-		}
-		osDelay(50); // Temporisation active
+    osDelay(1);
   }
   /* USER CODE END StartReinit */
 }
@@ -604,17 +562,10 @@ void StartReinit(void const * argument)
 void StartGestLed(void const * argument)
 {
   /* USER CODE BEGIN StartGestLed */
-	
   /* Infinite loop */
   for(;;)
   {
-		osSemaphoreWait(Led_semaphoreHandle, osWaitForever);
-		printf("----- GestLed -----\n\r");
-    if(anomalie){
-			HAL_GPIO_TogglePin(GPIOB, LED_RED_Pin); // LED rouge connectée sur PB9, led clignotante en cas d'anomalie
-		} else {
-			HAL_GPIO_WritePin(GPIOB, LED_RED_Pin, GPIO_PIN_RESET);
-		}
+    osDelay(1);
   }
   /* USER CODE END StartGestLed */
 }
@@ -623,25 +574,14 @@ void StartGestLed(void const * argument)
 void CallbackHorloge(void const * argument)
 {
   /* USER CODE BEGIN CallbackHorloge */
-  printf("----- Horloge -----\n\r");
-	HAL_GPIO_TogglePin(GPIOB, LED_GREEN_Pin); // LED verte connectée sur PB7, led de test
+  printf("horloge : \n\r");
 	int r = rand();
 	endroit = r%2;
-	
-	//osSemaphoreRelease(Ecran_semaphoreHandle);
-	nbTour1++;
+	osSignalSet (GestEcranHandle, signal_lcd);
+	nbTour1++;	
 	
 	
   /* USER CODE END CallbackHorloge */
-}
-
-/* CallbackLedHorloge function */
-void CallbackLedHorloge(void const * argument)
-{
-  /* USER CODE BEGIN CallbackLedHorloge */
-	printf("----- Led Horloge -----\n\r");
-  osSemaphoreRelease(Led_semaphoreHandle);
-  /* USER CODE END CallbackLedHorloge */
 }
 
 /**
